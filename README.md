@@ -19,7 +19,9 @@ The project is structured according to the principles of Clean Architecture:
 
 ### 2.1 The Core Algorithm (Latency vs. Match Quality)
 To prevent expensive $O(N^2)$ pairwise checks over a raw list of queued players, we quantize players into discrete buckets using their MMR:
+
 $$\text{BucketID} = \text{floor}\left(\frac{\text{PlayerMMR}}{\text{BUCKET\_SIZE}}\right)$$
+
 We store the queues in a Rust `BTreeMap<i32, VecDeque<Ticket>>`. This provides:
 * **$O(1)$ Insertion** into the bucket's FIFO double-ended queue.
 * **$O(\log B + K)$ Range Scans** to find neighboring buckets, where $B$ is the number of active buckets and $K$ is the search radius.
