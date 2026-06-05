@@ -20,7 +20,7 @@ The project is structured according to the principles of Clean Architecture:
 ### 2.1 The Core Algorithm (Latency vs. Match Quality)
 To prevent expensive $O(N^2)$ pairwise checks over a raw list of queued players, we quantize players into discrete buckets using their MMR:
 
-$$\text{BucketID} = \text{floor}\left(\frac{\text{PlayerMMR}}{\text{BUCKET\_SIZE}}\right)$$
+$$\text{BucketID} = \text{floor}\left(\frac{\text{PlayerMMR}}{\text{BucketSize}}\right)$$
 
 We store the queues in a Rust `BTreeMap<i32, VecDeque<Ticket>>`. This provides:
 * **$O(1)$ Insertion** into the bucket's FIFO double-ended queue.
@@ -77,11 +77,12 @@ While the in-memory Actor Model ensures maximum single-node throughput, moving t
 To visualize the engine under heavy concurrent load, the project includes a real-time Terminal User Interface (TUI) built with `ratatui`.
 
 When you launch the application, you enter an interactive Setup Screen where you can dynamically specify load parameters. During the simulation, the dashboard heavily monitors the background matchmaking actor:
-* **Wait Time Percentiles:** Logarithmic gauges displaying `p50`, `p90`, `p99`, and `Max` wait times.
-* **Throughput & Queue Delta:** Tracks absolute "Matches Per Second (MPS)" and calculates the instantaneous Queue Delta (+/- per sec) to visualize algorithmic bottlenecks versus ingress pressure.
-* **Match Tension Extremes:** Unpacks the algorithmic cost function to strictly track the mathematical Average, Minimum, and Maximum values for `Delta` (MMR Gap), `Variance` (internal skill spread), and `Search Radius Extension` across all formed matches.
-* **Queue Demographics & Staleness:** Live-tracks the exact counts of Solos, Duos, and Trios stuck in the waiting pool, and explicitly flags the age of the absolute oldest ticket to monitor algorithmic starvation.
-* **Tick Profiling:** Benchmarks the microsecond execution time of the B-Tree ordered-iterators to evaluate CPU scalability.
+* **Wait Time Percentiles (`p50`, `p90`, `p99`, `Max`):** Displayed dynamically on logarithmic gauges. **Significance:** In matchmaking, averages hide outliers. Tracking the `p99` and `Max` wait times ensures that edge-case players (e.g., top 1% skill brackets) aren't being permanently starved or ignored by the matching loop.
+* **Throughput & Queue Delta:** Tracks "Matches Per Second" and the live Queue Delta (+/-). **Significance:** If the Queue Delta turns positive and climbs indefinitely, it proves the single-threaded algorithmic B-Tree scan is bottlenecking and failing to outpace the HTTP ingress pressure, signaling a need for horizontal scaling.
+* **Queue Health (Fragmentation & Wait Debt):** Tracks active memory buckets and cumulative time wasted. **Significance:** A fragmented queue (few players spread across hundreds of buckets) forces the algorithm to execute expensive Step-Function expansions. It directly visualizes memory density.
+* **Match Tension Extremes:** Tracks the Min, Max, and Average for `Delta` (MMR Gap), `Variance` (internal skill spread), and `Search Radius`. **Significance:** This unpacks the internal Cost Function. While the *Average* Delta proves the team-balancer is generally working, tracking the *Max* explicitly exposes the absolute worst-case scenario match the algorithm was forced to generate under load.
+* **Queue Demographics & Staleness:** Tracks Solos, Duos, Trios, and the absolute oldest ticket age. **Significance:** Uncovers systemic bias. If the algorithm inherently favors packing Solos to easily optimize MMR averages, the Trio count will perpetually rise and their ticket age will stall out, identifying an unfair balancing heuristic.
+* **CPU Tick Profiling:** Benchmarks the B-Tree ordered-iterator execution in microseconds. **Significance:** Directly evaluates the raw CPU efficiency and algorithmic complexity limits of the main actor thread.
 
 ---
 
